@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>MindAR Compiler</title>
+  <style>
+    body { font-family: system-ui; background: #0a0a0a; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; gap: 20px; }
+    h1 { font-size: 20px; color: #6366f1; }
+    input[type=file] { background: #1a1a2e; border: 1px dashed #6366f1; padding: 16px 24px; border-radius: 8px; color: #ccc; cursor: pointer; }
+    button { background: #6366f1; color: #fff; border: none; padding: 12px 28px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    #status { font-size: 13px; color: #a5b4fc; min-height: 20px; text-align: center; max-width: 400px; }
+    #preview { max-width: 300px; border-radius: 8px; display: none; }
+  </style>
+</head>
+<body>
+  <h1>MindAR .mind Compiler</h1>
+  <div id="loading" style="color:#a5b4fc;font-size:13px">Loading MindAR...</div>
+  <input type="file" id="fileInput" accept="image/*" style="display:none" />
+  <img id="preview" />
+  <button id="compileBtn" disabled style="display:none">Compile → card.mind</button>
+  <div id="status"></div>
+
+  <script type="module">
+    import { Compiler } from 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js';
+
+    document.getElementById('loading').textContent = '✅ MindAR loaded';
+    document.getElementById('fileInput').style.display = '';
+    document.getElementById('compileBtn').style.display = '';
+
+    const fileInput = document.getElementById('fileInput');
+    const compileBtn = document.getElementById('compileBtn');
+    const status = document.getElementById('status');
+    const preview = document.getElementById('preview');
+    let selectedFile = null;
+
+    fileInput.addEventListener('change', (e) => {
+      selectedFile = e.target.files[0];
+      if (!selectedFile) return;
+      preview.src = URL.createObjectURL(selectedFile);
+      preview.style.display = 'block';
+      compileBtn.disabled = false;
+      status.textContent = 'Ready: ' + selectedFile.name;
+    });
+
+    compileBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+      compileBtn.disabled = true;
+      status.textContent = 'Compiling...';
+
+      try {
+        const compiler = new Compiler();
+        const img = new Image();
+        img.src = URL.createObjectURL(selectedFile);
+        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+
+        await compiler.compileImageTargets([img], (progress) => {
+          status.textContent = `Compiling... ${Math.round(progress * 100)}%`;
+        });
+
+        const buffer = await compiler.exportData();
+        const blob = new Blob([buffer]);
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'card.mind';
+        a.click();
+        status.textContent = '✅ Done! Save card.mind to /public/';
+      } catch (err) {
+        status.textContent = '❌ Error: ' + (err.message || err);
+        console.error(err);
+      } finally {
+        compileBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
