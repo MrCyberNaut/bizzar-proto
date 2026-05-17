@@ -41,27 +41,24 @@ export const CARD_CONFIG = {
   model3d: '/model.glb',
 }
 
-// Panel 3D transforms — MindAR world units (pixel-scale). Anchor z ≈ -4500 at ~60cm distance.
-// Local axes: +X right, +Y up (card face), +Z toward camera. Scale = backing plane size in world units.
+// CSS3DObject transforms — children of anchor.group (MindAR pixel-scale local space).
+// Card ~500 units wide, ~315 units tall. +Z toward camera, +Y up on card face.
+// CSS panel sizes (px) are the actual DOM element dimensions fed to CSS3DRenderer.
 export const PANEL_TRANSFORMS = {
   overlay: {
-    position: [0, 0, 30] as [number, number, number],
+    position: [0, 0, 15] as [number, number, number],
     rotation: [0, 0, 0] as [number, number, number],
-    scale: [550, 345, 1] as [number, number, number],
   },
   top: {
-    position: [0, 380, 100] as [number, number, number],
+    position: [0, 380, 200] as [number, number, number],
     rotation: [-0.25, 0, 0] as [number, number, number],
-    scale: [300, 220, 1] as [number, number, number],
   },
   left: {
-    position: [-450, 50, 80] as [number, number, number],
+    position: [-520, 30, 150] as [number, number, number],
     rotation: [0, 0.3, 0] as [number, number, number],
-    scale: [230, 260, 1] as [number, number, number],
   },
   right: {
-    position: [450, 50, 80] as [number, number, number],
+    position: [520, 30, 150] as [number, number, number],
     rotation: [0, -0.3, 0] as [number, number, number],
-    scale: [230, 260, 1] as [number, number, number],
   },
 }
