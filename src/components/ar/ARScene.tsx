@@ -1,23 +1,14 @@
 'use client'
 // components/ar/ARScene.tsx
-// MindAR handles image tracking. CSS3DRenderer renders HTML panels as CSS3DObjects
-// parented directly to anchor.group — single animation loop, zero sync issues.
+// MindAR manages camera + image tracking.
+// R3F Canvas transparent overlay — anchor.group passed directly to CardAnchor (no Zustand lag).
 
 import { useEffect, useRef, useState } from 'react'
+import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore — three/examples/jsm path resolution varies by bundler
-import { CSS3DRenderer, CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRenderer.js'
-import { createRoot } from 'react-dom/client'
-import type { Root } from 'react-dom/client'
-import { CARD_CONFIG, PANEL_TRANSFORMS } from '@/lib/ar-config'
-import { VCard } from '@/components/modules/VCard'
-import { Bio } from '@/components/modules/Bio'
-import { Socials } from '@/components/modules/Socials'
-import { GitHubGraph } from '@/components/modules/GitHubGraph'
-import { ImageGallery } from '@/components/modules/ImageGallery'
-import { VideoPanel } from '@/components/modules/VideoPanel'
-import { CardOverlay } from '@/components/modules/CardOverlay'
+import { useARStore } from '@/store/ar-store'
+import { CardAnchor } from './CardAnchor'
+import { CARD_CONFIG } from '@/lib/ar-config'
 
 interface MindARInstance {
   renderer: THREE.WebGLRenderer
@@ -32,20 +23,27 @@ interface MindARInstance {
   }
 }
 
-function makePanelDiv(width: number, height: number): HTMLDivElement {
-  const div = document.createElement('div')
-  Object.assign(div.style, {
-    width: `${width}px`,
-    height: `${height}px`,
-    background: 'rgba(8, 8, 20, 0.82)',
-    borderRadius: '14px',
-    border: '1px solid rgba(255,255,255,0.13)',
-    overflow: 'hidden',
-    boxSizing: 'border-box',
-    fontFamily: 'system-ui, sans-serif',
-    color: '#fff',
+function CameraSync({ mindarCamera }: { mindarCamera: THREE.PerspectiveCamera | null }) {
+  const { camera } = useThree()
+
+  useEffect(() => {
+    camera.matrixAutoUpdate = false
+    ;(camera as any).matrixWorldAutoUpdate = false
+    return () => {
+      camera.matrixAutoUpdate = true
+      ;(camera as any).matrixWorldAutoUpdate = true
+    }
+  }, [camera])
+
+  useFrame(() => {
+    if (!mindarCamera) return
+    camera.projectionMatrix.copy(mindarCamera.projectionMatrix)
+    camera.projectionMatrixInverse.copy(mindarCamera.projectionMatrixInverse)
+    camera.matrixWorld.copy(mindarCamera.matrixWorld)
+    camera.matrixWorldInverse.copy(mindarCamera.matrixWorldInverse)
+    camera.matrixWorldNeedsUpdate = false
   })
-  return div
+  return null
 }
 
 export function ARScene() {
@@ -53,13 +51,15 @@ export function ARScene() {
   const [error, setError] = useState<string | null>(null)
   const [tracking, setTracking] = useState(false)
   const [ready, setReady] = useState(false)
+  const [mindarCamera, setMindarCamera] = useState<THREE.PerspectiveCamera | null>(null)
+  // Pass anchor.group directly — no Zustand roundtrip, no frame lag
+  const anchorGroupRef = useRef<THREE.Group | null>(null)
+  const mindarRef = useRef<MindARInstance | null>(null)
+  const { setLost } = useARStore()
 
   useEffect(() => {
     if (!containerRef.current) return
     let cancelled = false
-    const cssRoots: Root[] = []
-    let cssRendererEl: HTMLElement | null = null
-    let mindar: MindARInstance | null = null
 
     const run = async () => {
       try {
@@ -68,105 +68,36 @@ export function ARScene() {
         if (!MindARThree) throw new Error('MindAR bundle did not expose window.MINDAR.IMAGE.MindARThree')
         if (cancelled || !containerRef.current) return
 
-        mindar = new MindARThree({
+        const mindar: MindARInstance = new MindARThree({
           container: containerRef.current,
           imageTargetSrc: CARD_CONFIG.mindFile,
           uiLoading: 'no',
           uiScanning: 'no',
           uiError: 'no',
-        }) as MindARInstance
-
-        // Lights into MindAR's scene
-        mindar.scene.add(new THREE.AmbientLight(0xffffff, 0.8))
-        const dir = new THREE.DirectionalLight(0xffffff, 1.2)
-        dir.position.set(5, 10, 5)
-        mindar.scene.add(dir)
-        mindar.scene.add(new THREE.PointLight(0x6366f1, 0.5).position.set(-3, 5, -3) && new THREE.PointLight(0x6366f1, 0.5))
-
-        // CSS3DRenderer — overlays on top of MindAR's WebGL canvas
-        const cssRenderer = new CSS3DRenderer()
-        cssRenderer.setSize(window.innerWidth, window.innerHeight)
-        Object.assign(cssRenderer.domElement.style, {
-          position: 'fixed',
-          top: '0',
-          left: '0',
-          pointerEvents: 'none',
-          zIndex: '2',
         })
-        document.body.appendChild(cssRenderer.domElement)
-        cssRendererEl = cssRenderer.domElement
+        mindarRef.current = mindar
 
         const anchor = mindar.addAnchor(0)
-
-        // Helper: create a CSS3DObject panel, add to anchor.group, render React into it
-        const addPanel = (
-          slot: keyof typeof PANEL_TRANSFORMS,
-          width: number,
-          height: number,
-          content: React.ReactElement,
-        ) => {
-          const div = makePanelDiv(width, height)
-          const obj = new CSS3DObject(div)
-          const t = PANEL_TRANSFORMS[slot]
-          obj.position.set(...t.position)
-          obj.rotation.set(...t.rotation)
-          anchor.group.add(obj)
-          const root = createRoot(div)
-          root.render(content)
-          cssRoots.push(root)
-        }
-
-        addPanel('overlay', 700, 440, <CardOverlay />)
-
-        addPanel('top', 400, 300,
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', height: '100%', padding: '10px' }}>
-            <div style={{ flex: '0 0 54%' }}><VCard /></div>
-            <div style={{ flex: '1 1 0' }}><Bio /></div>
-          </div>
-        )
-
-        addPanel('left', 320, 380,
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', height: '100%', padding: '10px' }}>
-            <div style={{ flex: '0 0 40%' }}><Socials /></div>
-            <div style={{ flex: '1 1 0' }}><GitHubGraph /></div>
-          </div>
-        )
-
-        addPanel('right', 320, 380,
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', height: '100%', padding: '10px' }}>
-            <div style={{ flex: '0 0 48%' }}><ImageGallery /></div>
-            <div style={{ flex: '1 1 0' }}><VideoPanel /></div>
-          </div>
-        )
-
-        // Floating icosahedron — plain Three.js mesh, no R3F needed
-        const gem = new THREE.Mesh(
-          new THREE.IcosahedronGeometry(35, 0),
-          new THREE.MeshStandardMaterial({
-            color: '#6366f1',
-            metalness: 0.8,
-            roughness: 0.15,
-            emissive: '#2d2f7e',
-            emissiveIntensity: 0.4,
-          })
-        )
-        gem.position.set(0, 0, 300)
-        anchor.group.add(gem)
+        anchorGroupRef.current = anchor.group
 
         anchor.onTargetFound = () => { if (!cancelled) setTracking(true) }
-        anchor.onTargetLost = () => { if (!cancelled) setTracking(false) }
+        anchor.onTargetLost = () => {
+          if (!cancelled) {
+            setLost()
+            setTracking(false)
+          }
+        }
 
-        // Single animation loop — both renderers, same camera
-        mindar.renderer.setAnimationLoop((time: number) => {
-          gem.rotation.y = (time / 1000) * 0.6
-          gem.rotation.x = Math.sin(time / 2000) * 0.3
-          mindar!.renderer.render(mindar!.scene, mindar!.camera)
-          cssRenderer.render(mindar!.scene, mindar!.camera)
+        // MindAR drives its own renderer; R3F runs independently via frameloop="always"
+        mindar.renderer.setAnimationLoop(() => {
+          mindar.renderer.render(mindar.scene, mindar.camera)
         })
 
         await mindar.start()
-        if (!cancelled) setReady(true)
-
+        if (!cancelled) {
+          setMindarCamera(mindar.camera)
+          setReady(true)
+        }
       } catch (err) {
         if (!cancelled) setError(`AR failed: ${err instanceof Error ? err.message : String(err)}`)
       }
@@ -175,11 +106,7 @@ export function ARScene() {
     run()
     return () => {
       cancelled = true
-      cssRoots.forEach(r => r.unmount())
-      if (cssRendererEl && document.body.contains(cssRendererEl)) {
-        document.body.removeChild(cssRendererEl)
-      }
-      mindar?.stop()
+      mindarRef.current?.stop()
     }
   }, [])
 
@@ -200,6 +127,19 @@ export function ARScene() {
   return (
     <>
       <div ref={containerRef} style={{ position: 'fixed', inset: 0, zIndex: 0 }} />
+
+      <Canvas
+        style={{ position: 'fixed', inset: 0, zIndex: 1, background: 'transparent', pointerEvents: 'none' }}
+        gl={{ alpha: true, antialias: true }}
+        camera={{ fov: 75, near: 0.01, far: 100000 }}
+        frameloop="always"
+      >
+        <CameraSync mindarCamera={mindarCamera} />
+        <ambientLight intensity={0.8} />
+        <directionalLight position={[5, 10, 5]} intensity={1.2} />
+        <pointLight position={[-3, 5, -3]} intensity={0.5} color="#6366f1" />
+        <CardAnchor anchorGroup={anchorGroupRef} />
+      </Canvas>
 
       <div style={{ position: 'fixed', bottom: '32px', left: '50%', transform: 'translateX(-50%)', zIndex: 10, pointerEvents: 'none' }}>
         {!tracking && ready && (
