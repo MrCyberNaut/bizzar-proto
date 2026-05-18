@@ -15,38 +15,34 @@ function ARContent({ onFound, onLost }: { onFound: () => void; onLost: () => voi
       <ambientLight intensity={0.8} />
       <directionalLight position={[5, 10, 5]} intensity={1.2} />
 
-      {/* Overlay — sits flat on card surface */}
-      <Html
-        transform
-        occlude={false}
-        position={PANEL_TRANSFORMS.overlay.position}
-        rotation={PANEL_TRANSFORMS.overlay.rotation}
-        style={{ pointerEvents: 'none' }}
-      >
-        <CardOverlay />
-      </Html>
+      {/* Overlay — sits flat on card surface, sized to card (1 unit wide ≈ 85mm) */}
+      {/* group scale 0.0055 maps 180px CSS → ~1 world unit wide */}
+      <group scale={0.0055} position={PANEL_TRANSFORMS.overlay.position} rotation={PANEL_TRANSFORMS.overlay.rotation}>
+        <Html transform occlude={false} style={{ pointerEvents: 'none' }}>
+          <div style={{ width: 180, height: 113, pointerEvents: 'none' }}>
+            <CardOverlay />
+          </div>
+        </Html>
+      </group>
 
-      {/* VCard panel — floats above card */}
-      <Html
-        transform
-        occlude={false}
-        position={PANEL_TRANSFORMS.top.position}
-        rotation={PANEL_TRANSFORMS.top.rotation}
-      >
-        <div style={{
-          width: 180,
-          background: 'rgba(8,8,20,0.9)',
-          borderRadius: 12,
-          border: '1px solid rgba(255,255,255,0.15)',
-          overflow: 'hidden',
-          padding: 10,
-          boxSizing: 'border-box',
-          fontFamily: 'system-ui, sans-serif',
-          color: '#fff',
-        }}>
-          <VCard />
-        </div>
-      </Html>
+      {/* VCard panel — floats above card, group scale shrinks into AR world units */}
+      <group scale={0.35} position={PANEL_TRANSFORMS.top.position} rotation={PANEL_TRANSFORMS.top.rotation}>
+        <Html transform occlude={false}>
+          <div style={{
+            width: 180,
+            background: 'rgba(8,8,20,0.9)',
+            borderRadius: 12,
+            border: '1px solid rgba(255,255,255,0.15)',
+            overflow: 'hidden',
+            padding: 10,
+            boxSizing: 'border-box',
+            fontFamily: 'system-ui, sans-serif',
+            color: '#fff',
+          }}>
+            <VCard />
+          </div>
+        </Html>
+      </group>
     </ARAnchor>
   )
 }
