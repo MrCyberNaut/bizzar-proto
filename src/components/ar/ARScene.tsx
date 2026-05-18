@@ -3,7 +3,7 @@
 // react-three-mind: single renderer, MindAR tracking piped into R3F frame loop.
 // ARAnchor children get anchor transform automatically — no manual matrix sync.
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ARView, ARAnchor } from 'react-three-mind'
 import { Html } from '@react-three/drei'
 import { CARD_CONFIG, PANEL_TRANSFORMS } from '@/lib/ar-config'
@@ -105,6 +105,18 @@ function ARContent({ onFound, onLost }: { onFound: () => void; onLost: () => voi
 export function ARScene() {
   const [tracking, setTracking] = useState(false)
   const [ready, setReady] = useState(false)
+  const [arError, setArError] = useState<string | null>(null)
+
+  // Surface camera/permission errors
+  useEffect(() => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setArError('Camera API not available. Requires HTTPS.')
+    }
+  }, [])
+
+  if (arError) {
+    throw new Error(arError)
+  }
 
   return (
     <>
@@ -112,6 +124,7 @@ export function ARScene() {
         imageTargets={CARD_CONFIG.mindFile}
         style={{ position: 'fixed', inset: 0, zIndex: 0 }}
         onReady={() => setReady(true)}
+        onError={(e: unknown) => { throw new Error(String(e)) }}
         filterMinCF={0.001}
         filterBeta={1000}
         missTolerance={5}

@@ -2,6 +2,7 @@
 // app/ar/ARPageClient.tsx
 
 import dynamic from 'next/dynamic'
+import { Component, type ReactNode } from 'react'
 
 const ARScene = dynamic(
   () => import('@/components/ar/ARScene').then((m) => ({ default: m.ARScene })),
@@ -44,6 +45,44 @@ function LoadingScreen() {
   )
 }
 
+interface EBState { error: string | null }
+class ARErrorBoundary extends Component<{ children: ReactNode }, EBState> {
+  state: EBState = { error: null }
+  static getDerivedStateFromError(e: Error): EBState {
+    return { error: e.message }
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{
+          position: 'fixed', inset: 0, background: '#000',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          fontFamily: 'system-ui', color: '#fff', gap: '12px',
+          padding: '20px', textAlign: 'center',
+        }}>
+          <div style={{ fontSize: '28px' }}>⚠️</div>
+          <div style={{ fontSize: '15px', fontWeight: '600' }}>AR failed to start</div>
+          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', maxWidth: '280px', wordBreak: 'break-word' }}>
+            {this.state.error}
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            style={{ marginTop: '8px', padding: '8px 20px', borderRadius: '20px', border: 'none', background: '#6366f1', color: '#fff', fontSize: '13px', cursor: 'pointer' }}
+          >
+            Retry
+          </button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 export function ARPageClient() {
-  return <ARScene />
+  return (
+    <ARErrorBoundary>
+      <ARScene />
+    </ARErrorBoundary>
+  )
 }
