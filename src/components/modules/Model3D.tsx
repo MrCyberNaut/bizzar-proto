@@ -7,7 +7,7 @@ import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
-import { CARD_CONFIG } from '@/lib/ar-config'
+import { CARD_CONFIG, PANEL_TRANSFORMS } from '@/lib/ar-config'
 
 export function Model3D() {
   const ref = useRef<THREE.Group>(null)
@@ -30,7 +30,7 @@ export function Model3D() {
   return (
     <group
       ref={ref}
-      position={[3.0, 1.8, 0.5]}
+      position={PANEL_TRANSFORMS.model.position}
       scale={[0.8, 0.8, 0.8]}
     >
       {scene ? (
