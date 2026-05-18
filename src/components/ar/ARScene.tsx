@@ -1,47 +1,21 @@
 'use client'
 // components/ar/ARScene.tsx
-// react-three-mind: single renderer, MindAR tracking piped into R3F frame loop.
-// ARAnchor children get anchor transform automatically — no manual matrix sync.
+// Phase 1: overlay + 1 VCard panel. Expand once tracking is confirmed stable.
 
 import { useState, useEffect } from 'react'
 import { ARView, ARAnchor } from 'react-three-mind'
 import { Html } from '@react-three/drei'
 import { CARD_CONFIG, PANEL_TRANSFORMS } from '@/lib/ar-config'
 import { VCard } from '@/components/modules/VCard'
-import { Bio } from '@/components/modules/Bio'
-import { Socials } from '@/components/modules/Socials'
-import { GitHubGraph } from '@/components/modules/GitHubGraph'
-import { ImageGallery } from '@/components/modules/ImageGallery'
-import { VideoPanel } from '@/components/modules/VideoPanel'
 import { CardOverlay } from '@/components/modules/CardOverlay'
-import { Model3D } from '@/components/modules/Model3D'
-
-function PanelHtml({ width, height, children }: { width: number; height: number; children: React.ReactNode }) {
-  return (
-    <div style={{
-      width, height,
-      background: 'rgba(8,8,20,0.85)',
-      borderRadius: 14,
-      border: '1px solid rgba(255,255,255,0.13)',
-      overflow: 'hidden',
-      padding: 10,
-      boxSizing: 'border-box',
-      fontFamily: 'system-ui, sans-serif',
-      color: '#fff',
-    }}>
-      {children}
-    </div>
-  )
-}
 
 function ARContent({ onFound, onLost }: { onFound: () => void; onLost: () => void }) {
   return (
     <ARAnchor target={0} onAnchorFound={onFound} onAnchorLost={onLost}>
       <ambientLight intensity={0.8} />
       <directionalLight position={[5, 10, 5]} intensity={1.2} />
-      <pointLight position={[-3, 5, -3]} intensity={0.5} color="#6366f1" />
 
-      {/* Overlay — flat on card */}
+      {/* Overlay — sits flat on card surface */}
       <Html
         transform
         occlude={false}
@@ -52,52 +26,27 @@ function ARContent({ onFound, onLost }: { onFound: () => void; onLost: () => voi
         <CardOverlay />
       </Html>
 
-      {/* Top — VCard + Bio */}
+      {/* VCard panel — floats above card */}
       <Html
         transform
         occlude={false}
         position={PANEL_TRANSFORMS.top.position}
         rotation={PANEL_TRANSFORMS.top.rotation}
       >
-        <PanelHtml width={260} height={200}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, height: '100%' }}>
-            <div style={{ flex: '0 0 62%' }}><VCard /></div>
-            <div style={{ flex: '1 1 0', overflow: 'hidden' }}><Bio /></div>
-          </div>
-        </PanelHtml>
+        <div style={{
+          width: 180,
+          background: 'rgba(8,8,20,0.9)',
+          borderRadius: 12,
+          border: '1px solid rgba(255,255,255,0.15)',
+          overflow: 'hidden',
+          padding: 10,
+          boxSizing: 'border-box',
+          fontFamily: 'system-ui, sans-serif',
+          color: '#fff',
+        }}>
+          <VCard />
+        </div>
       </Html>
-
-      {/* Left — Socials + GitHub */}
-      <Html
-        transform
-        occlude={false}
-        position={PANEL_TRANSFORMS.left.position}
-        rotation={PANEL_TRANSFORMS.left.rotation}
-      >
-        <PanelHtml width={220} height={260}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, height: '100%' }}>
-            <div style={{ flex: '0 0 40%' }}><Socials /></div>
-            <div style={{ flex: '1 1 0', overflow: 'hidden' }}><GitHubGraph /></div>
-          </div>
-        </PanelHtml>
-      </Html>
-
-      {/* Right — Gallery + Video */}
-      <Html
-        transform
-        occlude={false}
-        position={PANEL_TRANSFORMS.right.position}
-        rotation={PANEL_TRANSFORMS.right.rotation}
-      >
-        <PanelHtml width={220} height={260}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, height: '100%' }}>
-            <div style={{ flex: '0 0 48%', overflow: 'hidden' }}><ImageGallery /></div>
-            <div style={{ flex: '1 1 0', overflow: 'hidden' }}><VideoPanel /></div>
-          </div>
-        </PanelHtml>
-      </Html>
-
-      <Model3D />
     </ARAnchor>
   )
 }
@@ -107,22 +56,20 @@ export function ARScene() {
   const [ready, setReady] = useState(false)
   const [arError, setArError] = useState<string | null>(null)
 
-  // Surface camera/permission errors
   useEffect(() => {
     if (!navigator.mediaDevices?.getUserMedia) {
-      setArError('Camera API not available. Requires HTTPS.')
+      setArError('Camera API not available — requires HTTPS.')
     }
   }, [])
 
-  if (arError) {
-    throw new Error(arError)
-  }
+  if (arError) throw new Error(arError)
 
   return (
     <>
       <ARView
         imageTargets={CARD_CONFIG.mindFile}
         style={{ position: 'fixed', inset: 0, zIndex: 0 }}
+        flipUserCamera={false}
         onReady={() => setReady(true)}
         onError={(e: unknown) => { throw new Error(String(e)) }}
         filterMinCF={0.001}
