@@ -59,10 +59,10 @@ function ARContent({ onFound, onLost }: { onFound: () => void; onLost: () => voi
         position={PANEL_TRANSFORMS.top.position}
         rotation={PANEL_TRANSFORMS.top.rotation}
       >
-        <PanelHtml width={400} height={300}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, height: '100%' }}>
-            <div style={{ flex: '0 0 54%' }}><VCard /></div>
-            <div style={{ flex: '1 1 0' }}><Bio /></div>
+        <PanelHtml width={260} height={200}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, height: '100%' }}>
+            <div style={{ flex: '0 0 62%' }}><VCard /></div>
+            <div style={{ flex: '1 1 0', overflow: 'hidden' }}><Bio /></div>
           </div>
         </PanelHtml>
       </Html>
@@ -74,10 +74,10 @@ function ARContent({ onFound, onLost }: { onFound: () => void; onLost: () => voi
         position={PANEL_TRANSFORMS.left.position}
         rotation={PANEL_TRANSFORMS.left.rotation}
       >
-        <PanelHtml width={320} height={380}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, height: '100%' }}>
+        <PanelHtml width={220} height={260}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, height: '100%' }}>
             <div style={{ flex: '0 0 40%' }}><Socials /></div>
-            <div style={{ flex: '1 1 0' }}><GitHubGraph /></div>
+            <div style={{ flex: '1 1 0', overflow: 'hidden' }}><GitHubGraph /></div>
           </div>
         </PanelHtml>
       </Html>
@@ -89,10 +89,10 @@ function ARContent({ onFound, onLost }: { onFound: () => void; onLost: () => voi
         position={PANEL_TRANSFORMS.right.position}
         rotation={PANEL_TRANSFORMS.right.rotation}
       >
-        <PanelHtml width={320} height={380}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, height: '100%' }}>
-            <div style={{ flex: '0 0 48%' }}><ImageGallery /></div>
-            <div style={{ flex: '1 1 0' }}><VideoPanel /></div>
+        <PanelHtml width={220} height={260}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, height: '100%' }}>
+            <div style={{ flex: '0 0 48%', overflow: 'hidden' }}><ImageGallery /></div>
+            <div style={{ flex: '1 1 0', overflow: 'hidden' }}><VideoPanel /></div>
           </div>
         </PanelHtml>
       </Html>

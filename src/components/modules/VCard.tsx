@@ -29,16 +29,16 @@ export function VCard() {
       fontFamily: "'DM Sans', system-ui, sans-serif",
     }}>
       <div>
-        <div style={{ fontSize: '18px', fontWeight: '700', color: '#fff', lineHeight: 1.2 }}>
+        <div style={{ fontSize: '14px', fontWeight: '700', color: '#fff', lineHeight: 1.2 }}>
           {owner.name}
         </div>
-        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginTop: '3px' }}>
+        <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>
           {owner.title} · {owner.company}
         </div>
-        <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>📧 {owner.email}</div>
-          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>📱 {owner.phone}</div>
-          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>🌐 {owner.website}</div>
+        <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.6)' }}>📧 {owner.email}</div>
+          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.6)' }}>📱 {owner.phone}</div>
+          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.6)' }}>🌐 {owner.website}</div>
         </div>
       </div>
       <button
