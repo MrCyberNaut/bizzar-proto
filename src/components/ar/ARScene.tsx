@@ -89,9 +89,8 @@ export function ARScene() {
       <ARView
         imageTargets={CARD_CONFIG.mindFile}
         style={{ position: 'fixed', inset: 0, zIndex: 0 }}
-        flipUserCamera={false}
         onReady={() => setReady(true)}
-        onError={(e: unknown) => { throw new Error(String(e)) }}
+        onError={(e: unknown) => console.warn('[ARView error]', e)}
         filterMinCF={0.001}
         filterBeta={1000}
         missTolerance={5}
