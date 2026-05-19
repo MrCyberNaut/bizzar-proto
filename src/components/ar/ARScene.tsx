@@ -3,7 +3,7 @@
 // Pure R3F meshes — scales naturally in MindAR 1-unit space.
 // Card = 1 unit wide × 0.635 unit tall (85mm × 54mm).
 
-import { useState, useEffect, useRef, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense, useCallback } from 'react'
 import { ARView, ARAnchor } from 'react-three-mind'
 import { useTexture, Text, RoundedBox } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
@@ -60,8 +60,14 @@ function ContactCard() {
   )
 }
 
-// ── Anchor content ────────────────────────────────────────────────────────────
-function ARContent({ onFound, onLost }: { onFound: () => void; onLost: () => void }) {
+// ── Anchor content — callbacks via refs to avoid closure-stale re-renders ────
+function ARContent({
+  onFound,
+  onLost,
+}: {
+  onFound: () => void
+  onLost: () => void
+}) {
   return (
     <ARAnchor target={0} onAnchorFound={onFound} onAnchorLost={onLost}>
       <ambientLight intensity={1.2} />
@@ -75,8 +81,13 @@ function ARContent({ onFound, onLost }: { onFound: () => void; onLost: () => voi
 
 // ── Scene root ────────────────────────────────────────────────────────────────
 export function ARScene() {
+  // Only HUD state drives re-renders of the outer shell — ARView is unaffected.
   const [tracking, setTracking] = useState(false)
   const [ready, setReady] = useState(false)
+
+  // Stable callbacks so ARContent never re-renders due to new function refs.
+  const handleFound = useCallback(() => setTracking(true), [])
+  const handleLost = useCallback(() => setTracking(false), [])
 
   useEffect(() => {
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -91,14 +102,24 @@ export function ARScene() {
         style={{ position: 'fixed', inset: 0, zIndex: 0 }}
         onReady={() => setReady(true)}
         onError={(e: unknown) => console.warn('[ARView error]', e)}
-        filterMinCF={0.001}
-        filterBeta={1000}
-        missTolerance={5}
-        warmupTolerance={3}
+        // ── Tracking quality tuning ──────────────────────────────────────────
+        // One Euro Filter: lower minCF = smoother pose, lower beta = less
+        // speed-dependent lag on slow / stationary targets like a desk card.
+        filterMinCF={0.0001}
+        filterBeta={100}
+        // Hold target for 10 missed frames before losing it (reduces flicker).
+        missTolerance={10}
+        // Confirm target after 2 frames (fast detection).
+        warmupTolerance={2}
+        // Only track 1 image target — halves CPU work on single-card use case.
+        maxTrack={1}
+        // Cap device pixel ratio to 1.5 — 3× DPR on Android triples render cost.
+        dpr={[1, 1.5]}
       >
-        <ARContent onFound={() => setTracking(true)} onLost={() => setTracking(false)} />
+        <ARContent onFound={handleFound} onLost={handleLost} />
       </ARView>
 
+      {/* HUD is outside ARView — state changes here never trigger Canvas re-renders */}
       <div style={{ position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)', zIndex: 10, pointerEvents: 'none' }}>
         {!tracking && ready && (
           <div style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 100, padding: '10px 20px', color: '#fff', fontSize: 14, fontWeight: 500, fontFamily: 'system-ui', display: 'flex', alignItems: 'center', gap: 8 }}>
