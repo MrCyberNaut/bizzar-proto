@@ -106,10 +106,8 @@ export function ARScene() {
         // One Euro Filter: lower minCF = smoother pose, lower beta = less
         // speed-dependent lag on slow / stationary targets like a desk card.
         filterMinCF={0.0001}
-        filterBeta={100}
-        // Hold target for 10 missed frames before losing it (reduces flicker).
-        missTolerance={10}
-        // Confirm target after 2 frames (fast detection).
+        filterBeta={5000}
+        missTolerance={25}
         warmupTolerance={2}
         // Only track 1 image target — halves CPU work on single-card use case.
         maxTrack={1}
