@@ -59,7 +59,7 @@
         });
 
         const buffer = await compiler.exportData();
-        const blob = new Blob([buffer]);
+        const blob = new Blob([buffer], { type: 'application/octet-stream' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = 'card.mind';
