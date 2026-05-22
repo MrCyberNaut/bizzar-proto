@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>auto-compile</title></head>
+<body>
+<div id="status">loading...</div>
+<script type="module">
+import { Compiler } from 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js'
+
+const status = document.getElementById('status')
+const CARDS = JSON.parse(document.currentScript?.dataset?.cards || '[]') || window.__CARDS__
+
+async function run() {
+  const cards = window.__CARDS__
+  if (!cards || cards.length === 0) {
+    status.textContent = 'ERROR: no __CARDS__ injected'
+    return
+  }
+
+  status.textContent = `loading ${cards.length} images...`
+
+  const imgs = await Promise.all(cards.map(src => new Promise((res, rej) => {
+    const img = new Image()
+    img.onload = () => res(img)
+    img.onerror = () => rej(new Error(`failed to load ${src}`))
+    img.src = src
+  })))
+
+  status.textContent = 'compiling...'
+
+  const compiler = new Compiler()
+  await compiler.compileImageTargets(imgs, p => {
+    const pct = Math.round(p * 100)
+    status.textContent = `compiling... ${pct}%`
+    window.__PROGRESS__ = pct
+  })
+
+  const buffer = await compiler.exportData()
+  const arr = Array.from(new Uint8Array(buffer))
+  window.__RESULT__ = arr
+  status.textContent = `done:${arr.length}`
+}
+
+run().catch(err => {
+  status.textContent = 'ERROR: ' + err.message
+  window.__ERROR__ = err.message
+})
+</script>
+</body>
+</html>
