@@ -12,7 +12,7 @@
 export const CARDS: { index: number; name: string; image: string }[] = [
   { index: 0, name: 'E-Cell MIT',  image: '/card1.jpg' },
   { index: 1, name: 'Card 2',      image: '/card2.jpg' },
-  { index: 2, name: 'Card 3',      image: '/card3.jpg' },
+  { index: 2, name: 'Card 3',      image: '/card3.png' },
 ]
 
 export const CARD_CONFIG = {

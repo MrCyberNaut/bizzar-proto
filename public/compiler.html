@@ -2,60 +2,151 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>MindAR Compiler</title>
+  <title>MindAR Multi-Target Compiler</title>
   <style>
-    body { font-family: system-ui; background: #0a0a0a; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; gap: 20px; }
-    h1 { font-size: 20px; color: #6366f1; }
-    input[type=file] { background: #1a1a2e; border: 1px dashed #6366f1; padding: 16px 24px; border-radius: 8px; color: #ccc; cursor: pointer; }
-    button { background: #6366f1; color: #fff; border: none; padding: 12px 28px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
-    button:disabled { opacity: 0.4; cursor: not-allowed; }
-    #status { font-size: 13px; color: #a5b4fc; min-height: 20px; text-align: center; max-width: 400px; }
-    #preview { max-width: 300px; border-radius: 8px; display: none; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui; background: #0a0a0a; color: #fff; display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 32px 16px; gap: 16px; }
+    h1 { font-size: 20px; color: #6366f1; margin: 0; }
+    .subtitle { font-size: 12px; color: #475569; margin: 0; text-align: center; }
+    .drop-zone {
+      width: 100%; max-width: 480px; border: 2px dashed #312e81; border-radius: 12px;
+      padding: 24px; text-align: center; cursor: pointer; color: #64748b;
+      font-size: 13px; transition: border-color 0.2s;
+    }
+    .drop-zone.drag-over { border-color: #6366f1; color: #a5b4fc; }
+    .drop-zone input { display: none; }
+    #card-list { width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 8px; }
+    .card-item {
+      display: flex; align-items: center; gap: 10px;
+      background: #111827; border: 1px solid #1e293b; border-radius: 8px; padding: 8px 12px;
+    }
+    .card-item .idx { font-size: 11px; color: #4b5563; font-weight: 700; min-width: 22px; }
+    .card-item img { width: 48px; height: 30px; object-fit: cover; border-radius: 4px; background: #1e293b; }
+    .card-item .name { flex: 1; font-size: 12px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .card-item .remove { background: none; border: none; color: #475569; font-size: 16px; cursor: pointer; padding: 0 4px; line-height: 1; }
+    .card-item .remove:hover { color: #ef4444; }
+    .card-item .move { background: none; border: none; color: #475569; font-size: 14px; cursor: pointer; padding: 0 2px; }
+    .card-item .move:hover { color: #a5b4fc; }
+    .hint { font-size: 11px; color: #334155; text-align: center; }
+    button#compileBtn {
+      background: #6366f1; color: #fff; border: none; padding: 12px 36px;
+      border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; width: 100%; max-width: 480px;
+    }
+    button#compileBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+    #status { font-size: 13px; color: #a5b4fc; min-height: 20px; text-align: center; max-width: 480px; }
+    #progress-bar-wrap { width: 100%; max-width: 480px; height: 4px; background: #1e293b; border-radius: 4px; display: none; }
+    #progress-bar { height: 4px; background: #6366f1; border-radius: 4px; width: 0%; transition: width 0.1s; }
+    #loading { font-size: 13px; color: #a5b4fc; }
   </style>
 </head>
 <body>
-  <h1>MindAR .mind Compiler</h1>
-  <div id="loading" style="color:#a5b4fc;font-size:13px">Loading MindAR...</div>
-  <input type="file" id="fileInput" accept="image/*" style="display:none" />
-  <img id="preview" />
-  <button id="compileBtn" disabled style="display:none">Compile → card.mind</button>
+  <h1>MindAR Multi-Target Compiler</h1>
+  <p class="subtitle">Add up to 10 card images in order. Index 0 = card1, Index 1 = card2, etc.</p>
+
+  <div id="loading">Loading MindAR...</div>
+
+  <div class="drop-zone" id="dropZone" style="display:none">
+    <input type="file" id="fileInput" accept="image/*" multiple />
+    <div>Click to add images <span style="color:#475569">— or drag & drop</span></div>
+    <div style="font-size:11px;margin-top:6px;color:#334155">PNG, JPG supported · multiple files OK · order matters</div>
+  </div>
+
+  <div id="card-list"></div>
+  <p class="hint" id="orderHint" style="display:none">↑↓ reorder to change target index</p>
+
+  <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+  <button id="compileBtn" disabled style="display:none">Compile all targets → card.mind</button>
   <div id="status"></div>
 
   <script type="module">
     import { Compiler } from 'https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js';
 
-    document.getElementById('loading').textContent = '✅ MindAR loaded';
-    document.getElementById('fileInput').style.display = '';
-    document.getElementById('compileBtn').style.display = '';
-
-    const fileInput = document.getElementById('fileInput');
+    const loadingEl  = document.getElementById('loading');
+    const dropZone   = document.getElementById('dropZone');
+    const fileInput  = document.getElementById('fileInput');
+    const cardList   = document.getElementById('card-list');
     const compileBtn = document.getElementById('compileBtn');
-    const status = document.getElementById('status');
-    const preview = document.getElementById('preview');
-    let selectedFile = null;
+    const statusEl   = document.getElementById('status');
+    const progressWrap = document.getElementById('progress-bar-wrap');
+    const progressBar  = document.getElementById('progress-bar');
+    const orderHint  = document.getElementById('orderHint');
 
-    fileInput.addEventListener('change', (e) => {
-      selectedFile = e.target.files[0];
-      if (!selectedFile) return;
-      preview.src = URL.createObjectURL(selectedFile);
-      preview.style.display = 'block';
-      compileBtn.disabled = false;
-      status.textContent = 'Ready: ' + selectedFile.name;
+    loadingEl.textContent = '✅ MindAR loaded';
+    dropZone.style.display = '';
+    compileBtn.style.display = '';
+
+    // ── Image entries ──────────────────────────────────────────────────────────
+    // Each: { file: File, url: string, img: HTMLImageElement }
+    const entries = [];
+
+    function render() {
+      cardList.innerHTML = '';
+      entries.forEach((e, i) => {
+        const item = document.createElement('div');
+        item.className = 'card-item';
+        item.innerHTML = `
+          <span class="idx">#${i}</span>
+          <img src="${e.url}" alt="" />
+          <span class="name">${e.file.name}</span>
+          <button class="move up" title="Move up">↑</button>
+          <button class="move dn" title="Move down">↓</button>
+          <button class="remove" title="Remove">✕</button>
+        `;
+        item.querySelector('.up').addEventListener('click', () => { if (i > 0) { [entries[i-1], entries[i]] = [entries[i], entries[i-1]]; render(); } });
+        item.querySelector('.dn').addEventListener('click', () => { if (i < entries.length-1) { [entries[i], entries[i+1]] = [entries[i+1], entries[i]]; render(); } });
+        item.querySelector('.remove').addEventListener('click', () => { entries.splice(i, 1); render(); });
+        cardList.appendChild(item);
+      });
+      orderHint.style.display = entries.length > 1 ? '' : 'none';
+      compileBtn.disabled = entries.length === 0;
+      if (entries.length > 0) {
+        statusEl.textContent = `${entries.length} target${entries.length > 1 ? 's' : ''} ready — target indices: ${entries.map((_,i)=>i).join(', ')}`;
+      } else {
+        statusEl.textContent = '';
+      }
+    }
+
+    async function addFiles(files) {
+      for (const file of files) {
+        if (!file.type.startsWith('image/')) continue;
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.src = url;
+        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+        entries.push({ file, url, img });
+      }
+      render();
+    }
+
+    // Click to open file picker
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => addFiles(Array.from(e.target.files)));
+
+    // Drag and drop
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      addFiles(Array.from(e.dataTransfer.files));
     });
 
+    // ── Compile ────────────────────────────────────────────────────────────────
     compileBtn.addEventListener('click', async () => {
-      if (!selectedFile) return;
+      if (entries.length === 0) return;
       compileBtn.disabled = true;
-      status.textContent = 'Compiling...';
+      progressWrap.style.display = '';
+      progressBar.style.width = '0%';
+      statusEl.textContent = 'Compiling…';
 
       try {
         const compiler = new Compiler();
-        const img = new Image();
-        img.src = URL.createObjectURL(selectedFile);
-        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+        const imgs = entries.map(e => e.img);
 
-        await compiler.compileImageTargets([img], (progress) => {
-          status.textContent = `Compiling... ${Math.round(progress * 100)}%`;
+        await compiler.compileImageTargets(imgs, (progress) => {
+          const pct = Math.round(progress * 100);
+          progressBar.style.width = pct + '%';
+          statusEl.textContent = `Compiling… ${pct}%`;
         });
 
         const buffer = await compiler.exportData();
@@ -64,9 +155,14 @@
         a.href = URL.createObjectURL(blob);
         a.download = 'card.mind';
         a.click();
-        status.textContent = '✅ Done! Save card.mind to /public/';
+
+        progressBar.style.width = '100%';
+        statusEl.innerHTML = `✅ Done! ${entries.length} targets compiled.<br>
+          <span style="color:#475569;font-size:11px">
+            Save card.mind → public/card.mind &nbsp;·&nbsp; then reload the AR app
+          </span>`;
       } catch (err) {
-        status.textContent = '❌ Error: ' + (err.message || err);
+        statusEl.textContent = '❌ Error: ' + (err.message || err);
         console.error(err);
       } finally {
         compileBtn.disabled = false;
