@@ -9,7 +9,7 @@ import { ARView, ARAnchor } from 'react-three-mind'
 import { useTexture, Text, RoundedBox } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { CARD_CONFIG } from '@/lib/ar-config'
+import { CARD_CONFIG, CARDS } from '@/lib/ar-config'
 import { downloadVCF } from '@/lib/vcf'
 import { AnchorContent } from './AnchorContent'
 import { usePreprocessedCamera } from '@/lib/camera-preprocess'
@@ -87,19 +87,20 @@ function ContactCard() {
   )
 }
 
-// ── ARContent — runs inside R3F canvas, writes pose to DOM refs ───────────────
-function ARContent({
+// ── CardAnchor — one per card target ─────────────────────────────────────────
+// Each instance manages its own ARAnchor + group ref.
+// Pose is written to DOM ref only when THIS anchor is visible.
+function CardAnchor({
+  card, flip,
   onFound, onLost,
-  onPoseDom, onFpsDom,
-  onPoseLog,
-  flip,
+  onPoseDom, onPoseLog,
 }: {
-  onFound: () => void
-  onLost: () => void
-  onPoseDom: React.RefObject<HTMLSpanElement>
-  onFpsDom: React.RefObject<HTMLSpanElement>
-  onPoseLog: (msg: string) => void
+  card: typeof CARDS[number]
   flip: boolean
+  onFound: (idx: number) => void
+  onLost: (idx: number) => void
+  onPoseDom: React.RefObject<HTMLSpanElement>
+  onPoseLog: (msg: string) => void
 }) {
   const groupRef = useRef<THREE.Group>(null)
   const _p = useRef(new THREE.Vector3())
@@ -108,24 +109,8 @@ function ARContent({
   const _s = useRef(new THREE.Vector3())
   const lastPoseLog = useRef(0)
 
-  // FPS tracking — count frames, reset every second
-  const frameCount = useRef(0)
-  const lastFpsTs  = useRef(performance.now())
-
   useFrame(() => {
-    // ── FPS ──────────────────────────────────────────────────────────────────
-    frameCount.current++
-    const now = performance.now()
-    if (now - lastFpsTs.current >= 1000) {
-      const fps = frameCount.current
-      frameCount.current = 0
-      lastFpsTs.current = now
-      if (onFpsDom.current) onFpsDom.current.textContent = `${fps}fps`
-      if (fps < 30) console.warn(`[AR][PERF] low FPS: ${fps}`)
-    }
-
-    // ── Pose ─────────────────────────────────────────────────────────────────
-    if (!groupRef.current) return
+    if (!groupRef.current?.visible) return
     groupRef.current.matrixWorld.decompose(_p.current, _q.current, _s.current)
     _e.current.setFromQuaternion(_q.current)
 
@@ -134,22 +119,25 @@ function ARContent({
     const ry = THREE.MathUtils.radToDeg(_e.current.y).toFixed(1)
     const rz = THREE.MathUtils.radToDeg(_e.current.z).toFixed(1)
     const sx = _s.current.x.toFixed(3)
-    const vis = groupRef.current.visible ? 'Y' : 'N'
 
     if (onPoseDom.current) {
       onPoseDom.current.textContent =
-        `pos(${px},${py},${pz}) rot(${rx}°,${ry}°,${rz}°) sc:${sx} vis:${vis}`
+        `[${card.name}] pos(${px},${py},${pz}) rot(${rx}°,${ry}°,${rz}°) sc:${sx}`
     }
 
-    // Throttled pose log every 2s — avoid flooding the panel
-    if (groupRef.current.visible && now - lastPoseLog.current > 2000) {
+    const now = performance.now()
+    if (now - lastPoseLog.current > 2000) {
       lastPoseLog.current = now
-      onPoseLog(`pos(${px},${py},${pz}) rot(${rx}°,${ry}°,${rz}°) sc:${sx}`)
+      onPoseLog(`[${card.name}] pos(${px},${py},${pz}) rot(${rx}°,${ry}°,${rz}°) sc:${sx}`)
     }
   })
 
   return (
-    <ARAnchor target={0} onAnchorFound={onFound} onAnchorLost={onLost}>
+    <ARAnchor
+      target={card.index}
+      onAnchorFound={() => onFound(card.index)}
+      onAnchorLost={() => onLost(card.index)}
+    >
       <group ref={groupRef}>
         <ambientLight intensity={1.2} />
         {/* DEBUG axes: red=X, green=Y, blue=Z. Should follow card plane. */}
@@ -165,23 +153,69 @@ function ARContent({
   )
 }
 
+// ── ARContent — runs inside R3F canvas, hosts all card anchors ────────────────
+function ARContent({
+  onFound, onLost,
+  onPoseDom, onFpsDom,
+  onPoseLog,
+  flip,
+}: {
+  onFound: (idx: number) => void
+  onLost: (idx: number) => void
+  onPoseDom: React.RefObject<HTMLSpanElement>
+  onFpsDom: React.RefObject<HTMLSpanElement>
+  onPoseLog: (msg: string) => void
+  flip: boolean
+}) {
+  // FPS counter lives here — one per canvas, not per anchor
+  const frameCount = useRef(0)
+  const lastFpsTs  = useRef(performance.now())
+  useFrame(() => {
+    frameCount.current++
+    const now = performance.now()
+    if (now - lastFpsTs.current >= 1000) {
+      const fps = frameCount.current
+      frameCount.current = 0
+      lastFpsTs.current = now
+      if (onFpsDom.current) onFpsDom.current.textContent = `${fps}fps`
+      if (fps < 30) console.warn(`[AR][PERF] low FPS: ${fps}`)
+    }
+  })
+
+  return (
+    <>
+      {CARDS.map(card => (
+        <CardAnchor
+          key={card.index}
+          card={card}
+          flip={flip}
+          onFound={onFound}
+          onLost={onLost}
+          onPoseDom={onPoseDom}
+          onPoseLog={onPoseLog}
+        />
+      ))}
+    </>
+  )
+}
+
 // ── Debug panel ───────────────────────────────────────────────────────────────
 const LOG_COLOR: Record<LogType, string> = {
   info: '#64748b', ok: '#4ade80', warn: '#fbbf24', data: '#818cf8',
 }
 
 function DebugPanel({
-  logs, tracking, ready,
+  logs, activeCard, ready,
   poseDomRef, fpsDomRef,
   camera, onCameraToggle,
   glareFilter, onGlareToggle,
   profile, onProfile,
   params,
-  foundCount, lostCount,
+  foundCounts, lostCounts,
   onReset,
 }: {
   logs: LogEntry[]
-  tracking: boolean
+  activeCard: number | null
   ready: boolean
   poseDomRef: React.RefObject<HTMLSpanElement>
   fpsDomRef: React.RefObject<HTMLSpanElement>
@@ -192,8 +226,8 @@ function DebugPanel({
   profile: Profile
   onProfile: (p: Profile) => void
   params: typeof PROFILES[Profile]
-  foundCount: React.RefObject<number>
-  lostCount: React.RefObject<number>
+  foundCounts: React.RefObject<number[]>
+  lostCounts: React.RefObject<number[]>
   onReset: () => void
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -201,9 +235,12 @@ function DebugPanel({
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [logs])
 
+  const tracking = activeCard !== null
   const statusColor = tracking ? '#4ade80' : ready ? '#fbbf24' : '#818cf8'
   const statusBg    = tracking ? '#14532d' : ready ? '#451a03' : '#1e1b4b'
-  const statusText  = tracking ? '● TRACKING' : ready ? '○ SCANNING' : '◌ INIT'
+  const statusText  = tracking
+    ? `● ${CARDS[activeCard!]?.name ?? `CARD${activeCard}`}`
+    : ready ? '○ SCANNING' : '◌ INIT'
 
   const btnBase = { border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'monospace', padding: '2px 7px' }
 
@@ -219,7 +256,11 @@ function DebugPanel({
         <span style={{ color: '#334155' }}>AR DEBUG</span>
         <span style={{ padding: '2px 7px', borderRadius: 4, fontWeight: 700, background: statusBg, color: statusColor }}>{statusText}</span>
         <span ref={fpsDomRef}  style={{ color: '#22d3ee', fontSize: 10 }}>—fps</span>
-        <span style={{ color: '#475569', fontSize: 9 }}>found:{foundCount.current} lost:{lostCount.current}</span>
+        {CARDS.map((card, i) => (
+          <span key={i} style={{ color: activeCard === i ? '#4ade80' : '#334155', fontSize: 9, fontWeight: activeCard === i ? 700 : 400 }}>
+            {card.name} F{(foundCounts.current ?? [])[i] ?? 0}/L{(lostCounts.current ?? [])[i] ?? 0}
+          </span>
+        ))}
         <span ref={poseDomRef} style={{ color: '#818cf8', fontSize: 9, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>—</span>
       </div>
 
@@ -274,7 +315,7 @@ function DebugPanel({
 
 // ── Scene root ────────────────────────────────────────────────────────────────
 export function ARScene() {
-  const [tracking, setTracking]   = useState(false)
+  const [activeCard, setActiveCard] = useState<number | null>(null) // index of card currently tracked, null = none
   const [ready,    setReady]      = useState(false)
   const [camera,   setCamera]     = useState<'back' | 'front'>('back')
   const [glareFilter, setGlareFilter] = useState(true)
@@ -284,10 +325,15 @@ export function ARScene() {
   const poseDomRef = useRef<HTMLSpanElement>(null)
   const fpsDomRef  = useRef<HTMLSpanElement>(null)
 
-  // Event counters — refs to avoid re-renders
+  // Per-card counters — refs to avoid re-renders
+  // foundCounts[i] / lostCounts[i] track card index i
+  const foundCounts = useRef<number[]>(CARDS.map(() => 0))
+  const lostCounts  = useRef<number[]>(CARDS.map(() => 0))
+  const lastFoundTs = useRef<number | null>(null)
+
+  // Legacy single refs for DebugPanel compatibility
   const foundCount = useRef(0)
   const lostCount  = useRef(0)
-  const lastFoundTs = useRef<number | null>(null)
 
   // Install camera preprocessor once; toggle shader via uniform (no stream restart)
   usePreprocessedCamera(glareFilter)
@@ -309,26 +355,27 @@ export function ARScene() {
     console.error('[AR] ARView error', e)
   }, [add])
 
-  const handleFound = useCallback(() => {
-    setTracking(true)
+  const handleFound = useCallback((idx: number) => {
+    setActiveCard(idx)
+    foundCounts.current[idx] = (foundCounts.current[idx] ?? 0) + 1
     foundCount.current++
     lastFoundTs.current = Date.now()
-    add(`onAnchorFound #${foundCount.current}`, 'ok')
-    console.log('[AR] Anchor FOUND', {
-      count: foundCount.current,
-      sinceLastLost: lostCount.current > 0 ? `${((Date.now() - (lastFoundTs.current ?? 0)) / 1000).toFixed(1)}s` : 'first',
-    })
+    const name = CARDS[idx]?.name ?? `card${idx}`
+    add(`onAnchorFound [${name}] #${foundCounts.current[idx]}`, 'ok')
+    console.log('[AR] Anchor FOUND', { idx, name, count: foundCounts.current[idx] })
     if (navigator.vibrate) navigator.vibrate(50)
   }, [add])
 
-  const handleLost = useCallback(() => {
-    setTracking(false)
+  const handleLost = useCallback((idx: number) => {
+    setActiveCard(null)
+    lostCounts.current[idx] = (lostCounts.current[idx] ?? 0) + 1
     lostCount.current++
     const held = lastFoundTs.current
       ? `${((Date.now() - lastFoundTs.current) / 1000).toFixed(1)}s`
       : '?'
-    add(`onAnchorLost #${lostCount.current} — held ${held}`, 'warn')
-    console.log('[AR] Anchor LOST', { count: lostCount.current, held })
+    const name = CARDS[idx]?.name ?? `card${idx}`
+    add(`onAnchorLost [${name}] #${lostCounts.current[idx]} — held ${held}`, 'warn')
+    console.log('[AR] Anchor LOST', { idx, name, count: lostCounts.current[idx], held })
   }, [add])
 
   const handlePoseLog = useCallback((msg: string) => {
@@ -339,12 +386,13 @@ export function ARScene() {
   useEffect(() => {
     add('ARScene mounted', 'info')
     add(`UA: ${navigator.userAgent.slice(0, 80)}`)
-    add(`mind:${CARD_CONFIG.mindFile} img:${CARD_CONFIG.cardImage}`)
+    add(`mind:${CARD_CONFIG.mindFile} cards:${CARDS.length} [${CARDS.map(c => c.name).join(', ')}]`)
+    add('NOTE: mind file must be recompiled if card images changed — use /compiler.html', 'warn')
     if (!navigator.mediaDevices?.getUserMedia)
       add('ERROR: camera API unavailable — must be HTTPS', 'warn')
     console.log('[AR] ARScene mounted', {
       mindFile: CARD_CONFIG.mindFile,
-      cardImage: CARD_CONFIG.cardImage,
+      cards: CARDS,
       ua: navigator.userAgent,
     })
   }, [add])
@@ -364,14 +412,14 @@ export function ARScene() {
     console.log('[AR] Camera switch →', c)
     setCamera(c)
     setReady(false)
-    setTracking(false)
+    setActiveCard(null)
     add(`camera → ${c}`, 'info')
   }
 
   const handleProfileChange = (p: Profile) => {
     setProfile(p)
     setReady(false)
-    setTracking(false)
+    setActiveCard(null)
     setParamKey(k => k + 1) // forces ARView remount with new filter params
     add(`remounting ARView with profile ${p}`, 'info')
     console.log('[AR] Remounting ARView with profile', p, PROFILES[p])
@@ -379,10 +427,12 @@ export function ARScene() {
 
   const handleReset = () => {
     setReady(false)
-    setTracking(false)
+    setActiveCard(null)
     setParamKey(k => k + 1)
     foundCount.current = 0
     lostCount.current = 0
+    foundCounts.current = CARDS.map(() => 0)
+    lostCounts.current  = CARDS.map(() => 0)
     lastFoundTs.current = null
     add('RESET — counters cleared, ARView remounting', 'warn')
     console.log('[AR] Manual reset')
@@ -403,7 +453,7 @@ export function ARScene() {
           filterBeta={params.beta}
           missTolerance={params.missTol}
           warmupTolerance={params.warmup}
-          maxTrack={1}
+          maxTrack={CARDS.length}
           dpr={[1, 1.5]}
           debugMode={true}
         >
@@ -419,28 +469,28 @@ export function ARScene() {
 
         {/* Status overlay badge */}
         <div style={{ position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)', zIndex: 10, pointerEvents: 'none' }}>
-          {tracking ? (
+          {activeCard !== null ? (
             <div style={{ background: 'rgba(34,197,94,0.25)', border: '1px solid rgba(34,197,94,0.5)', borderRadius: 100, padding: '5px 14px', color: '#4ade80', fontSize: 12, fontWeight: 600, fontFamily: 'system-ui', display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#4ade80', display: 'inline-block' }} />
-              Card detected
+              {CARDS[activeCard]?.name ?? `Card ${activeCard}`} detected
             </div>
           ) : ready ? (
             <div style={{ background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 100, padding: '5px 14px', color: '#fff', fontSize: 12, fontFamily: 'system-ui', display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#fbbf24', display: 'inline-block', animation: 'pulse 1.5s infinite' }} />
-              Point at card
+              Point at any card
             </div>
           ) : null}
         </div>
       </div>
 
       <DebugPanel
-        logs={logs} tracking={tracking} ready={ready}
+        logs={logs} activeCard={activeCard} ready={ready}
         poseDomRef={poseDomRef} fpsDomRef={fpsDomRef}
         camera={camera} onCameraToggle={handleCameraToggle}
         glareFilter={glareFilter} onGlareToggle={() => setGlareFilter(f => !f)}
         profile={profile} onProfile={handleProfileChange}
         params={params}
-        foundCount={foundCount} lostCount={lostCount}
+        foundCounts={foundCounts} lostCounts={lostCounts}
         onReset={handleReset}
       />
 

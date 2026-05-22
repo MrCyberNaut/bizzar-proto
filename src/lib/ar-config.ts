@@ -1,9 +1,24 @@
 // lib/ar-config.ts
 // ALL hardcoded prototype data. When we move to platform, this comes from Supabase.
 
+// ── Multi-card inventory ────────────────────────────────────────────────────────
+// Each card maps to one target in the compiled .mind file (0-indexed).
+// To add a new card:
+//   1. Drop the image in public/ (e.g. card2.jpg)
+//   2. Open /compiler.html, add ALL card images in ORDER (card1, card2, card3...)
+//   3. Compile → download → replace public/card.mind
+//   4. Update CARDS array below — index must match compilation order
+
+export const CARDS: { index: number; name: string; image: string }[] = [
+  { index: 0, name: 'E-Cell MIT',  image: '/card1.jpg' },
+  { index: 1, name: 'Card 2',      image: '/card2.jpg' },
+  { index: 2, name: 'Card 3',      image: '/card3.jpg' },
+]
+
 export const CARD_CONFIG = {
   mindFile: '/card.mind',
-  cardImage: '/card1.jpg',
+  // Legacy single-card reference — used by ContactCard thumbnail
+  cardImage: CARDS[0].image,
 
   owner: {
     name: 'Arnav Sawant',
